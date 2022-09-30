@@ -1,0 +1,64 @@
+- hosts: tomacat
+  become_user: root
+
+  become: true
+  tasks:
+    - name: Get the JDK installer
+      get_url:
+        url: http://download.oracle.com/otn-pub/java/jdk/8u131-b11/d54c1d3a095b4ff2b6607d096fa80163/jdk-8u131-linux-x64.rpm
+        dest: /opt
+        headers: "Cookie:' gpw_e24=http%3A%2F%2Fwww.oracle.com%2F; oraclelicense=accept-securebackup-cookie'"
+        validate_certs: no
+      tags:
+        - get-jdk
+    - name: Install the JDK
+      yum:
+        name: /opt/jdk-8u131-linux-x64.rpm
+        state: present
+      tags:
+        - install-jdk
+    - name: Remove installer
+      file:
+        state: absent
+        path: /opt/jdk-8u131-linux-x64.rpm
+      ignore_errors: true
+    - name: Get TOMCAT installer
+      get_url:
+        url: http://dlcdn.apache.org/tomcat/tomcat-8/v8.5.82/bin/apache-tomcat-8.5.82.tar.gz
+        dest: /home/ec2-user
+      become: true
+      tags:
+        - get-tomcat-installer
+    - name: Install tomcat
+      unarchive:
+        src: /home/ec2-user/apache-tomcat-8.5.82.tar.gz
+        dest: /home/ec2-user/
+        remote_src: true
+        #- name: Remove installer
+        #file:
+        #state: absent
+        #path: /home/ec2-user/apache-tomcat-8.5.82.tar.gz
+    - name: Check if file exists
+      ansible.builtin.stat:
+        path: /home/ec2-user/apache-tomcat-8.5.82
+      register: check_file_name
+    - name: print debug
+      ansible.builtin.debug:
+        var: check_file_name
+     - name: Copy file with new name
+      ansible.builtin.copy:
+        remote_src: true
+        src: /home/ec2-user/apache-tomcat-8.5.82
+        dest: /home/ec2-user/tomcat
+      when: check_file_name.stat.exists
+    - name: Remove old file
+      ansible.builtin.file:
+       path: /home/ec2-user/apache-tomcat-8.5.82
+       state: absent
+      when: check_file_name.stat.exists
+    - name: Copy war file
+      copy:
+        src: sample.war
+        dest: /home/ec2-user/tomcat/apache-tomcat-8.5.82/webapps/sample.war
+    - name: Start and Enable Tomcat8 on sever
+      command: nohup /home/ec2-user/tomcat/apache-tomcat-8.5.82/bin/startup.sh
